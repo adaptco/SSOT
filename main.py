@@ -1,5 +1,6 @@
 from fastapi import FastAPI, Request
 from pathlib import Path
+from time import time
 import json
 
 from codex_validator import Credential, OverrideRequest, validate_payload
@@ -20,6 +21,12 @@ except FileNotFoundError:
 def health_check():
     """Return a simple JSON status to indicate service liveness."""
     return {"status": "alive"}
+
+
+@app.get("/healthz")
+def readiness_check():
+    """Expose readiness details compatible with container probes."""
+    return {"ok": True, "ts": int(time() * 1000)}
 
 @app.post("/webhook")
 async def webhook_handler(request: Request):
