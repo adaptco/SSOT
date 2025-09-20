@@ -1,0 +1,18 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: fonts-proxy }
+spec:
+  replicas: 2
+  selector: { matchLabels: { app: fonts-proxy } }
+  template:
+    metadata: { labels: { app: fonts-proxy } }
+    spec:
+      containers:
+        - name: proxy
+          image: ghcr.io/ORG/google-fonts-proxy:latest
+          ports: [{ containerPort: 8787 }]
+          env:
+            - { name: GOOGLE_FONTS_API_KEY, valueFrom: { secretKeyRef: { name: fonts-secrets, key: google_key } } }
+            - { name: PROXY_KEY, valueFrom: { secretKeyRef: { name: fonts-secrets, key: proxy_key } } }
+          readinessProbe: { httpGet: { path: /healthz, port: 8787 }, initialDelaySeconds: 2 }
+          livenessProbe:  { httpGet: { path: /healthz, port: 8787 }, initialDelaySeconds: 5 }

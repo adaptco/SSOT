@@ -1,0 +1,22 @@
+{
+  "info": { "name": "Google Fonts Proxy", "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json" },
+  "item": [
+    {
+      "name": "List Fonts",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "x-api-key", "value": "{{PROXY_KEY}}" }],
+        "url": { "raw": "{{BASE}}/api/fonts/list?sort=trending", "host": ["{{BASE}}"], "path": ["api","fonts","list"], "query": [{ "key": "sort", "value": "trending" }] }
+      }
+    },
+    {
+      "name": "Family Files",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "x-api-key", "value": "{{PROXY_KEY}}" }],
+        "url": { "raw": "{{BASE}}/api/fonts/files?family=Inter", "host": ["{{BASE}}"], "path": ["api","fonts","files"], "query": [{ "key": "family", "value": "Inter" }] }
+      }
+    }
+  ],
+  "variable": [{ "key": "BASE", "value": "https://your-domain.com" }, { "key": "PROXY_KEY", "value": "set-in-env" }]
+}
