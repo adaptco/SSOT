@@ -1,21 +1,128 @@
-from fastapi import FastAPI, Request
+from copy import deepcopy
 from pathlib import Path
 from time import time
+from typing import Dict, Iterable, List, Optional, Sequence
 import json
+import logging
+
+from fastapi import FastAPI, HTTPException, Query, Request
 
 from codex_validator import Credential, OverrideRequest, validate_payload
+
+logger = logging.getLogger(__name__)
+
+
+class AvatarRegistry:
+    """In-memory representation of the avatar dossier registry.
+
+    The registry is loaded once at application startup and exposes
+    convenience helpers so route handlers can provide rich responses
+    without repeating parsing logic.
+    """
+
+    def __init__(self, registry_path: Path) -> None:
+        self._path = registry_path
+        data = self._load()
+        self._mesh: Dict[str, object] = data.get("mesh", {})
+        self._avatars: List[Dict[str, object]] = data.get("avatars", [])
+        self._index = self._build_index(self._avatars)
+        self._available_names = tuple(
+            avatar["name"]
+            for avatar in self._avatars
+            if isinstance(avatar.get("name"), str)
+        )
+
+    def _load(self) -> Dict[str, object]:
+        """Load registry data from disk, handling common failure cases."""
+
+        if not self._path.exists():
+            logger.warning("Avatar registry file is missing at %s", self._path)
+            return {"mesh": {}, "avatars": []}
+
+        try:
+            with self._path.open("r", encoding="utf-8") as registry_file:
+                return json.load(registry_file)
+        except json.JSONDecodeError as exc:  # pragma: no cover - defensive guard
+            logger.error("Failed to parse avatar registry: %s", exc)
+        except OSError as exc:  # pragma: no cover - unexpected I/O error
+            logger.error("Unable to read avatar registry: %s", exc)
+        return {"mesh": {}, "avatars": []}
+
+    @staticmethod
+    def _build_index(avatars: Iterable[Dict[str, object]]) -> Dict[str, Dict[str, object]]:
+        """Normalize names for quick lookups."""
+
+        index: Dict[str, Dict[str, object]] = {}
+        for avatar in avatars:
+            name = avatar.get("name")
+            if not isinstance(name, str):
+                continue
+            normalized = name.strip().lower()
+            if normalized:
+                index[normalized] = avatar
+        return index
+
+    def mesh(self) -> Dict[str, object]:
+        """Return mesh metadata describing the Agent Mesh context."""
+
+        return deepcopy(self._mesh)
+
+    def list(self, element: Optional[str] = None) -> List[Dict[str, object]]:
+        """Return avatars, optionally filtered by elemental alignment."""
+
+        if element is None:
+            return [deepcopy(avatar) for avatar in self._avatars]
+
+        normalized = element.strip().lower()
+        filtered: List[Dict[str, object]] = []
+        for avatar in self._avatars:
+            alignment = avatar.get("elemental_alignment")
+            if isinstance(alignment, str) and alignment.strip().lower() == normalized:
+                filtered.append(deepcopy(avatar))
+        return filtered
+
+    def get(self, name: str) -> Optional[Dict[str, object]]:
+        """Return a single avatar dossier by normalized name."""
+
+        if not name:
+            return None
+        avatar = self._index.get(name.strip().lower())
+        return deepcopy(avatar) if avatar else None
+
+    def available_names(self) -> Sequence[str]:
+        """Return the list of canonical avatar names."""
+
+        return self._available_names
+
+    def elemental_alignments(self) -> List[str]:
+        """Return the unique elemental alignments present in the registry."""
+
+        seen = {
+            alignment.strip()
+            for alignment in (
+                avatar.get("elemental_alignment") for avatar in self._avatars
+            )
+            if isinstance(alignment, str) and alignment.strip()
+        }
+        return sorted(seen, key=str.lower)
+
+    def capsule_domains(self) -> List[str]:
+        """Return unique capsule domains for quick cross-referencing."""
+
+        domains = {
+            domain.strip()
+            for domain in (avatar.get("capsule_domain") for avatar in self._avatars)
+            if isinstance(domain, str) and domain.strip()
+        }
+        return sorted(domains)
+
 
 app = FastAPI()
 
 # Load the avatar registry into memory at startup. This registry is
 # treated as read-only and anchors avatar logic to the DimIndex scroll.
 _registry_path = Path(__file__).resolve().parent / "avatar_registry.json"
-try:
-    with _registry_path.open("r", encoding="utf-8") as _f:
-        AVATAR_REGISTRY = json.load(_f)
-except FileNotFoundError:
-    # Fallback to empty registry if file is missing
-    AVATAR_REGISTRY = {}
+AVATAR_REGISTRY = AvatarRegistry(_registry_path)
 
 @app.get("/health")
 def health_check():
@@ -27,6 +134,58 @@ def health_check():
 def readiness_check():
     """Expose readiness details compatible with container probes."""
     return {"ok": True, "ts": int(time() * 1000)}
+
+
+@app.get("/avatars")
+def list_avatars(element: Optional[str] = Query(None, description="Filter by elemental alignment")):
+    """Return the full avatar dossier as loaded from the registry."""
+
+    avatars = AVATAR_REGISTRY.list(element)
+    return {
+        "count": len(avatars),
+        "filter": {"element": element} if element else None,
+        "mesh": AVATAR_REGISTRY.mesh(),
+        "elemental_alignments": AVATAR_REGISTRY.elemental_alignments(),
+        "capsule_domains": AVATAR_REGISTRY.capsule_domains(),
+        "avatars": avatars,
+    }
+
+
+@app.get("/avatars/{avatar_name}")
+def fetch_avatar(avatar_name: str):
+    """Fetch a single avatar dossier by name.
+
+    Names are normalized to lowercase, so callers may provide any
+    casing. If the avatar is not found, return a 404 error to signal
+    that the registry lacks the requested record.
+    """
+
+    normalized = avatar_name.strip().lower()
+    if not normalized:
+        raise HTTPException(status_code=400, detail="Avatar name is required")
+
+    avatar = AVATAR_REGISTRY.get(normalized)
+    if avatar is None:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "error": "Avatar not found",
+                "available": list(AVATAR_REGISTRY.available_names()),
+            },
+        )
+    return avatar
+
+
+@app.get("/mesh")
+def mesh_overview():
+    """Expose high-level metadata about the Agent Mesh."""
+
+    mesh = AVATAR_REGISTRY.mesh()
+    return {
+        "name": mesh.get("name", "Agent Mesh"),
+        "description": mesh.get("description"),
+        "elemental_alignments": mesh.get("elemental_alignments", {}),
+    }
 
 @app.post("/webhook")
 async def webhook_handler(request: Request):
