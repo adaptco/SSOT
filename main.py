@@ -1,9 +1,13 @@
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from pathlib import Path
 from time import time
 import json
 
 from codex_validator import Credential, OverrideRequest, validate_payload
+from orchestrator.config import CAPSULE as ORCHESTRATOR_CAPSULE, FlowSubmission
+from previz.ledger import LIBRARY
+from screenplay import LIBRARY as SCREENPLAY_LIBRARY
+from ssot.binder import binder
 
 app = FastAPI()
 
@@ -27,6 +31,13 @@ def health_check():
 def readiness_check():
     """Expose readiness details compatible with container probes."""
     return {"ok": True, "ts": int(time() * 1000)}
+
+
+@app.get("/avatars")
+def avatar_registry():
+    """Expose the avatar registry to downstream orchestrators."""
+
+    return AVATAR_REGISTRY
 
 @app.post("/webhook")
 async def webhook_handler(request: Request):
@@ -89,3 +100,87 @@ async def onboard_agent(request: Request):
         "badge": badge,
         "status": "credentialed"
     }
+
+
+@app.get("/ssot/registry")
+def ssot_registry():
+    """Return the SSOT binder with Merkle metadata."""
+
+    return binder.as_dict()
+
+
+@app.post("/ssot/registry/validate")
+async def ssot_registry_validate(request: Request):
+    """Validate a prospective SSOT entry and preview the Merkle root."""
+
+    payload = await request.json()
+    return binder.validate_candidate(payload)
+
+
+@app.get("/orchestrator/capsule")
+def orchestrator_capsule():
+    """Return the orchestrator capsule specification."""
+
+    return ORCHESTRATOR_CAPSULE.dict()
+
+
+@app.post("/orchestrator/route")
+async def orchestrator_route(request: Request):
+    """Validate a routing sequence against the orchestrator flow order."""
+
+    payload = await request.json()
+    result = validate_payload(FlowSubmission, payload)
+    if not result.get("valid"):
+        return result
+    submission = FlowSubmission(**result["data"])
+    flow_result = ORCHESTRATOR_CAPSULE.validate_sequence(submission.sequence)
+    result["flow"] = flow_result.dict()
+    return result
+
+
+@app.get("/screenplay/capsules")
+def screenplay_capsules():
+    """List screenplay capsules anchoring sovereign relays."""
+
+    capsules = []
+    for summary in SCREENPLAY_LIBRARY.list_capsules():
+        capsules.append({
+            "capsule_id": summary.capsule_id,
+            "metadata": summary.metadata,
+        })
+    return {"capsules": capsules, "count": len(capsules)}
+
+
+@app.get("/screenplay/capsules/{capsule_id}")
+def screenplay_capsule(capsule_id: str):
+    """Return a screenplay capsule payload by id."""
+
+    try:
+        capsule = SCREENPLAY_LIBRARY.get_capsule(capsule_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return capsule.dict()
+
+
+@app.get("/previz/ledgers")
+def previz_ledgers():
+    """List available PreViz ledgers with summary metadata."""
+
+    ledgers = []
+    for summary in LIBRARY.list_summaries():
+        ledgers.append({
+            "scene": summary.scene,
+            "metadata": summary.metadata,
+        })
+    return {"ledgers": ledgers, "count": len(ledgers)}
+
+
+@app.get("/previz/ledgers/{scene}")
+def previz_ledger(scene: str):
+    """Return the full ledger payload for a given scene."""
+
+    try:
+        ledger = LIBRARY.get_ledger(scene)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return ledger.dict()

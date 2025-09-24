@@ -1,0 +1,19 @@
+{
+  "avatars": {
+    "queen_boo": {
+      "roles": ["router", "maker_checker"],
+      "signature": "sig:queen_boo_router",
+      "description": "Primary routing avatar enforcing SSOT lineage."
+    },
+    "cici": {
+      "roles": ["stabilizer", "emotional_regulator"],
+      "signature": "sig:cici_stabilizer",
+      "description": "Maintains tone alignment and capsule stability."
+    },
+    "sol_f1": {
+      "roles": ["previz", "animatics"],
+      "signature": "sig:sol_f1_previz",
+      "description": "Generates motion ledgers and dispatches clip jobs."
+    }
+  }
+}
