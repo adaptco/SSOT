@@ -8,6 +8,8 @@ You’ve already pinned the Proof → Flow → Execution braid. Here’s the fin
 
 ## Core runtime in AxQxOS
 
+> For the capsule-level blueprint that fossilizes CiCi's MoE LoRA inside Agent Boo's vessel (relay architecture, governance gates, rehearsal telemetry, and CI chain), see [`docs/fossilized_relay_architecture.md`](docs/fossilized_relay_architecture.md).
+
 - **Proof (SSOT registry):** Offline, private vault for every artifact—scripts, storyboards, assets, clips, and avatar checkpoints—sealed with SHA-256, Merkle lineage, and council signatures. Maker–checker and quorum rules govern replay and forks. This is your meta-level lead mechanism; Sol.F1 is the runtime bus that carries sealed decisions into operations.
 
 - **Flow (Core orchestrator):** Policy-as-code router. Queen Boo enforces routing/quorum, CiCi stabilizes emotional payload, Dot audits and rollback routes, Luma conducts the cascade and observability. Sol.F1 receives the sealed quorum packet and fans directives across verticals (ADAPTCO, Q.Enterprises, Macchina Soulutions).
