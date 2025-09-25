@@ -1,7 +1,8 @@
-from fastapi import FastAPI, HTTPException, Request
+import json
 from pathlib import Path
 from time import time
-import json
+
+from fastapi import FastAPI, HTTPException, Request
 
 from codex_validator import Credential, OverrideRequest, validate_payload
 from orchestrator.config import CAPSULE as ORCHESTRATOR_CAPSULE, FlowSubmission
@@ -159,7 +160,9 @@ def screenplay_capsule(capsule_id: str):
         capsule = SCREENPLAY_LIBRARY.get_capsule(capsule_id)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
-    return capsule.dict()
+    payload = capsule.dict()
+    payload["execution_tree"] = capsule.execution_tree()
+    return payload
 
 
 @app.get("/previz/ledgers")

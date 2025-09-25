@@ -45,6 +45,36 @@ class Scene(BaseModel):
     def ensure_beats_sorted(cls, value: List[SceneBeat]) -> List[SceneBeat]:
         return sorted(value, key=lambda beat: beat.beat_id)
 
+    def relay_stage_sequence(self) -> List[str]:
+        order: List[str] = []
+        for beat in self.beats:
+            stage = beat.relay_stage
+            if stage not in order:
+                order.append(stage)
+        return order
+
+    def execution_branch(self) -> Dict[str, object]:
+        return {
+            "scene_id": self.scene_id,
+            "title": self.title,
+            "runtime_seconds": self.runtime_seconds,
+            "environment": self.environment,
+            "relay_stages": self.relay_stage_sequence(),
+            "beats": [
+                {
+                    "beat_id": beat.beat_id,
+                    "title": beat.title,
+                    "relay_stage": beat.relay_stage,
+                    "description": beat.description,
+                    "ssot_refs": beat.ssot_refs,
+                    "orchestrator_refs": beat.orchestrator_refs,
+                    "previz_refs": beat.previz_refs,
+                    "clip_refs": beat.clip_refs,
+                }
+                for beat in self.beats
+            ],
+        }
+
 
 class ScreenplayAct(BaseModel):
     """One act in the screenplay."""
@@ -57,6 +87,14 @@ class ScreenplayAct(BaseModel):
     @validator("scenes")
     def ensure_scenes_sorted(cls, value: List[Scene]) -> List[Scene]:
         return sorted(value, key=lambda scene: scene.scene_id)
+
+    def execution_branch(self) -> Dict[str, object]:
+        return {
+            "act_id": self.act_id,
+            "title": self.title,
+            "purpose": self.purpose,
+            "scenes": [scene.execution_branch() for scene in self.scenes],
+        }
 
 
 class ClipPlan(BaseModel):
@@ -103,6 +141,9 @@ class ScreenplayCapsule(BaseModel):
             "runtime_seconds": total_runtime,
             "themes": self.themes,
         }
+
+    def execution_tree(self) -> List[Dict[str, object]]:
+        return [act.execution_branch() for act in self.acts]
 
 
 @dataclass
