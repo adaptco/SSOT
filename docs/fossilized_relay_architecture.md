@@ -127,6 +127,16 @@ This dossier captures how the SSOT stack fossilizes CiCi's mixture-of-experts Lo
 
 Each capsule inherits Governance v6.0 rules: versioned manifests, provenance fields, checksum manifests, dual sign-off, and audit log entries.
 
+### 4.5 Federation Registry Capsule
+
+`capsule.world.registry.v1` seals the four sovereign repositories into a single, replayable World Engine node so council members can invoke the braid as one artifact. The capsule is stored at [`capsules/capsule.world.registry.v1.json`](../capsules/capsule.world.registry.v1.json) and records:
+
+- **Linked repositories**: `adaptco/SSOT`, `adaptco/core-orchestrator`, `adaptco/ADAPTCO-previz`, and `adaptco/GOODNOOD`, with role descriptions that explain how each ledger contributes to the unified engine.
+- **Governance envelope**: Protocol version v6.0, trust floor ≥ 90, quorum rule 2-of-3, and attestors Queen Boo, Queen CiCi, and CouncilNode to enforce federation discipline.
+- **Integrity seal**: SHA-256 digest metadata (`scene_root_digest = sha256:WORLD_ENGINE_<final_hash>`) and the timestamp of the inscription so the node remains fossilized, replayable, and audit-ready.
+
+Treat this registry as the root capsule when orchestrating cross-repo flows—other capsules reference it when they emit motion ledgers, rehearsal streams, or replay tokens.
+
 ---
 
 ## 5. Orchestration Scripts & Prompts
