@@ -1,6 +1,8 @@
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import JSONResponse
 from pathlib import Path
 from time import time
+from ipaddress import ip_address, ip_network
 import json
 
 from codex_validator import Credential, OverrideRequest, validate_payload
@@ -9,6 +11,35 @@ from previz.ledger import LIBRARY
 from ssot.binder import binder
 
 app = FastAPI()
+
+
+_BLOCKED_NETWORKS = [
+    ip_network("3.134.238.10/32"),
+    ip_network("3.129.111.220/32"),
+    ip_network("52.15.118.168/32"),
+    ip_network("74.220.50.0/24"),
+    ip_network("74.220.58.0/24"),
+]
+
+
+@app.middleware("http")
+async def blocklisted_ip_guard(request: Request, call_next):
+    """Reject requests originating from blocklisted IP ranges."""
+
+    client_host = request.client.host if request.client else None
+    if client_host:
+        try:
+            client_ip = ip_address(client_host)
+        except ValueError:
+            client_ip = None
+        if client_ip:
+            for network in _BLOCKED_NETWORKS:
+                if client_ip in network:
+                    return JSONResponse(
+                        {"detail": "Access denied from blocked network"},
+                        status_code=403,
+                    )
+    return await call_next(request)
 
 # Load the avatar registry into memory at startup. This registry is
 # treated as read-only and anchors avatar logic to the DimIndex scroll.
