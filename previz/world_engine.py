@@ -183,6 +183,73 @@ class WorldEngine:
         return capsule
 
     # ------------------------------------------------------------------
+    # Canonical descriptions
+    def inscribe_canon_entry(
+        self,
+        entry_id: str = "capsule.canon.entry.boo.window.v1",
+    ) -> Capsule:
+        """Create a capsule that fossilizes a key visual from the gallery."""
+
+        self.log_action(
+            "canon.inscribe",
+            {"status": "describing", "entry_id": entry_id},
+        )
+
+        data = {
+            "capsule_id": entry_id,
+            "type": "CanonEntry",
+            "subject": {
+                "name": "Boo",
+                "title": "Sovereign Relay Emissary",
+                "pose": "3q-window-stance, left shoulder forward, gaze to cosmic vista",
+                "attire": {
+                    "primary": "neon filament suit",
+                    "accents": ["glyph-thread cuffs", "holographic pauldrons"],
+                },
+                "aura": {
+                    "palette": ["amber", "violet"],
+                    "intensity": "medium",  # balanced radiance for rehearsal law
+                    "behavior": "pulsed at 30Hz in sync with glyph.pulse HUD telemetry",
+                },
+            },
+            "environment": {
+                "location": "Qube observation chamber",
+                "architectural_features": [
+                    "trihedral glass window", "floating lattice grids", "hud pylons",
+                ],
+                "backdrop": "cosmic vista with braided aurorae",
+                "lighting": {
+                    "key": "overhead crystalline wash",
+                    "fill": "floor glyph rebound",
+                    "rim": "window aurora edge",
+                },
+            },
+            "hud_state": {
+                "glyph.pulse": "0.83",
+                "aura.gold.phase": "clarity",
+                "qlock.tick_s": 9,
+                "drift.delta": 0.005,
+            },
+            "lineage": {
+                "source_artifacts": [
+                    "figurine desk maquette",
+                    "neon wireframe rehearsal plate",
+                    "cosmic window vista capture",
+                    "HUD operator telemetry logs",
+                ],
+                "governance_version": self.governance["version"],
+                "previz_schema": self.previz_schema["version"],
+                "notes": "Locks wardrobe, aura cadence, and chamber geometry for future renders.",
+            },
+        }
+
+        capsule = Capsule(entry_id, data)
+        self.capsule_registry[capsule.capsule_id] = capsule
+        self.artifacts["canon_entry.json"] = json.dumps(capsule.as_dict(), indent=2)
+        self.log_action("canon.inscribe", {"status": "sealed", "digest": capsule.digest})
+        return capsule
+
+    # ------------------------------------------------------------------
     # Qube build + CI
     def build_qube(self) -> str:
         """Construct the conceptual Merkle lattice and return its root."""
@@ -357,6 +424,7 @@ def run_default_sequence() -> Dict[str, Capsule]:
     engine.emit_lora_map()
     engine.rehearse_scene()
     engine.fork_scene()
+    engine.inscribe_canon_entry()
     engine.build_qube()
     engine.run_ci()
     engine.finalize_and_bind()
@@ -378,6 +446,7 @@ if __name__ == "__main__":  # pragma: no cover - convenience CLI
     engine.emit_lora_map()
     engine.rehearse_scene()
     engine.fork_scene()
+    canon_capsule = engine.inscribe_canon_entry()
     exports = engine.finalize_and_bind()
 
     print("\n--- Gemini handoff prompt (to relay to Chat’s qDot Sentinel) ---")
@@ -390,3 +459,6 @@ if __name__ == "__main__":  # pragma: no cover - convenience CLI
     print("Motion ledger + HUD telemetry for canonical shots prepared.")
     print("Immutable digests and audit-ready replay tokens issued.")
     print("Braid is stable and fossilized.")
+    print("\n--- Canon Capsule ---")
+    print(f"Canon Entry ID: {canon_capsule.capsule_id}")
+    print(f"Canon Digest: {canon_capsule.digest}")
