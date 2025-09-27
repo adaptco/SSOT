@@ -2,6 +2,7 @@ from fastapi import FastAPI, HTTPException, Request
 from pathlib import Path
 from time import time
 import json
+from ipaddress import ip_address, ip_network
 
 from codex_validator import Credential, OverrideRequest, validate_payload
 from orchestrator.config import CAPSULE as ORCHESTRATOR_CAPSULE, FlowSubmission
@@ -9,6 +10,18 @@ from previz.ledger import LIBRARY
 from ssot.binder import binder
 
 app = FastAPI()
+
+# Network block list enforcing council security guidance.
+_BLOCKED_NETWORKS = tuple(
+    ip_network(value)
+    for value in (
+        "3.134.238.10/32",
+        "3.129.111.220/32",
+        "52.15.118.168/32",
+        "74.220.50.0/24",
+        "74.220.58.0/24",
+    )
+)
 
 # Load the avatar registry into memory at startup. This registry is
 # treated as read-only and anchors avatar logic to the DimIndex scroll.
@@ -24,6 +37,22 @@ except FileNotFoundError:
 def health_check():
     """Return a simple JSON status to indicate service liveness."""
     return {"status": "alive"}
+
+
+@app.middleware("http")
+async def enforce_blocklist(request: Request, call_next):
+    """Deny access to requests originating from blocked networks."""
+
+    client = request.client
+    if client and client.host:
+        try:
+            client_ip = ip_address(client.host)
+        except ValueError:
+            client_ip = None
+        if client_ip and any(client_ip in network for network in _BLOCKED_NETWORKS):
+            raise HTTPException(status_code=403, detail="request blocked")
+    response = await call_next(request)
+    return response
 
 
 @app.get("/healthz")
