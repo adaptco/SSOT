@@ -7,9 +7,12 @@ from ipaddress import ip_address, ip_network
 from codex_validator import Credential, OverrideRequest, validate_payload
 from orchestrator.config import CAPSULE as ORCHESTRATOR_CAPSULE, FlowSubmission
 from previz.ledger import LIBRARY
+from previz.world_engine import WorldEngine
 from ssot.binder import binder
 
 app = FastAPI()
+
+WORLD_ENGINE = WorldEngine()
 
 # Network block list enforcing council security guidance.
 _BLOCKED_NETWORKS = tuple(
@@ -188,3 +191,13 @@ def previz_ledger(scene: str):
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     return ledger.dict()
+
+
+@app.post("/previz/render")
+async def previz_render(request: Request):
+    """Route media requests through the WorldEngine simulation."""
+
+    payload = await request.json()
+    media_type = payload.get("media_type", "video")
+    prompt = payload.get("prompt")
+    return WORLD_ENGINE.request_media(media_type, prompt)

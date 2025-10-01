@@ -465,6 +465,79 @@ class WorldEngine:
         return exports
 
     # ------------------------------------------------------------------
+    # Media request helpers
+    def request_media(self, media_type: str, prompt: str | None = None) -> Dict[str, object]:
+        """Respond to media requests while enforcing the video-only contract."""
+
+        normalized = media_type.lower()
+        self.log_action(
+            "media.request",
+            {"status": "received", "media_type": normalized, "prompt": prompt or ""},
+        )
+
+        if normalized != "video":
+            response = {
+                "status": "unsupported",
+                "media_type": media_type,
+                "message": "I can only generate videos. Try another prompt.",
+            }
+            self.log_action(
+                "media.request",
+                {"status": "rejected", "media_type": normalized},
+            )
+            return response
+
+        required_capsules = [
+            {"capsule_id": "lexicon.qube.v1"},
+            {"capsule_id": "seed.core.v1"},
+            {"capsule_id": "ledger.cadence.v1"},
+            {"capsule_id": "lock.attestation.v1"},
+        ]
+        missing_foundation = [
+            capsule for capsule in required_capsules if capsule["capsule_id"] not in self.capsule_registry
+        ]
+        if missing_foundation:
+            self.load_capsules(missing_foundation)
+
+        if "boo.lora.map.v1" not in self.capsule_registry:
+            self.emit_lora_map()
+        if "capsule.rehearsal.boo.v2" not in self.capsule_registry:
+            self.rehearse_scene()
+        if "capsule.relay.scene.fork.v2" not in self.capsule_registry:
+            self.fork_scene()
+        if "capsule.canon.entry.boo.window.v1" not in self.capsule_registry:
+            self.inscribe_canon_entry()
+
+        self.build_qube()
+        self.run_ci()
+
+        exports = self.finalize_and_bind()
+
+        if "capsule.preview.hud.v1" not in self.capsule_registry:
+            self.stage_preview_hud()
+        if "capsule.summary.manifest.v1" not in self.capsule_registry:
+            self.emit_summary_manifest()
+
+        response = {
+            "status": "ok",
+            "media_type": "video",
+            "prompt": prompt or "",
+            "exports": exports,
+            "motion_ledger": self.capsule_registry["motion.ledger.v2"].as_dict(),
+            "replay_token": self.capsule_registry["replay.token.v2"].as_dict(),
+            "echo_scrollstream": self.capsule_registry["echo.scrollstream.v2"].as_dict(),
+        }
+        self.log_action(
+            "media.request",
+            {
+                "status": "fulfilled",
+                "media_type": normalized,
+                "motion_digest": exports["motion_ledger_digest"],
+            },
+        )
+        return response
+
+    # ------------------------------------------------------------------
     # Summary manifest + HUD preview
     def emit_summary_manifest(self) -> Capsule:
         """Emit the capsule.summary.manifest.v1 dual-root ledger."""
