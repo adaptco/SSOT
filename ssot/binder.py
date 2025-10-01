@@ -79,7 +79,9 @@ class RegistryEntry(BaseModel):
             "checkpoint",
             "clip",
             "design",
+            "relay",
             "script",
+            "simulation",
             "storyboard",
         }
         if value not in allowed:
