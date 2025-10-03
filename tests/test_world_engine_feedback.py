@@ -3,6 +3,8 @@
 from pathlib import Path
 import sys
 
+import pytest
+
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
 from previz.world_engine import WorldEngine
@@ -45,3 +47,25 @@ def test_stage_feedback_loop_with_freeze_schedule() -> None:
 
     assert capsule.data["ledger_freeze_job"]["scheduled"] is True
     assert capsule.data["ledger_freeze_job"]["status"] == "queued"
+
+
+def test_stage_adjudication_capsule_requires_feedback() -> None:
+    engine = build_engine_with_manifest()
+
+    with pytest.raises(ValueError) as excinfo:
+        engine.stage_adjudication_capsule()
+
+    assert "capsule.selfie.dualroot.q.cici.v1" in str(excinfo.value)
+
+
+def test_stage_adjudication_capsule_defaults() -> None:
+    engine = build_engine_with_manifest()
+    engine.stage_feedback_loop()
+
+    capsule = engine.stage_adjudication_capsule()
+
+    assert capsule.capsule_id == "capsule.adjudication.merge_conflict.v1"
+    assert capsule.data["status"] == "PENDING_ADJUDICATION"
+    files = {item["file"] for item in capsule.data["conflicts"]}
+    assert files == {"main.py", "previz/world_engine.py"}
+    assert capsule.data["overlay_logic"]["status"] == "aligned"

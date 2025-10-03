@@ -518,6 +518,9 @@ class WorldEngine:
         if "capsule.summary.manifest.v1" not in self.capsule_registry:
             self.emit_summary_manifest()
         feedback_capsule = self.stage_feedback_loop()
+        adjudication_capsule = self.stage_adjudication_capsule(
+            conflict_files=["main.py", "previz/world_engine.py"]
+        )
 
         response = {
             "status": "ok",
@@ -528,6 +531,7 @@ class WorldEngine:
             "replay_token": self.capsule_registry["replay.token.v2"].as_dict(),
             "echo_scrollstream": self.capsule_registry["echo.scrollstream.v2"].as_dict(),
             "feedback_loop": feedback_capsule.as_dict(),
+            "adjudication": adjudication_capsule.as_dict(),
         }
         self.log_action(
             "media.request",
@@ -724,6 +728,149 @@ class WorldEngine:
         self.log_action("feedback_loop.stage", {"status": "sealed", "digest": capsule.digest})
         return capsule
 
+    # ------------------------------------------------------------------
+    # Adjudication ritual
+    def stage_adjudication_capsule(
+        self,
+        conflict_files: Sequence[str] | None = None,
+        resolution_protocol: Sequence[str] | None = None,
+    ) -> Capsule:
+        """Bind an adjudication capsule for outstanding merge conflicts."""
+
+        self.log_action(
+            "adjudication.stage",
+            {
+                "status": "starting",
+                "conflict_files": list(conflict_files) if conflict_files else None,
+            },
+        )
+
+        # The adjudication ritual depends on the dual-root selfie feedback loop
+        # so the council has the emotional telemetry before ruling.
+        self._require_capsules(
+            "capsule.summary.manifest.v1",
+            "capsule.selfie.dualroot.q.cici.v1",
+            "capsule.selfie.dualroot.q.cici.v1.feedback.v1",
+        )
+
+        existing = self.capsule_registry.get("capsule.adjudication.merge_conflict.v1")
+        if existing:
+            self.log_action(
+                "adjudication.stage",
+                {"status": "existing", "digest": existing.digest},
+            )
+            return existing
+
+        manifest_capsule = self.capsule_registry["capsule.summary.manifest.v1"]
+        selfie_capsule = self.capsule_registry["capsule.selfie.dualroot.q.cici.v1"]
+        feedback_capsule = self.capsule_registry["capsule.selfie.dualroot.q.cici.v1.feedback.v1"]
+
+        default_conflicts = [
+            {
+                "file": "main.py",
+                "issue": "Align previz relay endpoint with council security overlays.",
+                "emotion": "resolve",
+                "intensity": 0.73,
+                "proposed_action": "verify blocklist middleware and media handoff narration",
+            },
+            {
+                "file": "previz/world_engine.py",
+                "issue": "Synchronise ritual capsules with merge timeline and lineage notes.",
+                "emotion": "focus",
+                "intensity": 0.82,
+                "proposed_action": "harmonise rehearsal, feedback, and adjudication fossils",
+            },
+        ]
+
+        conflicts: List[Dict[str, object]] = []
+        if conflict_files:
+            for path in conflict_files:
+                conflicts.append(
+                    next(
+                        (
+                            item
+                            for item in default_conflicts
+                            if item["file"] == path
+                        ),
+                        {
+                            "file": path,
+                            "issue": "Contributor noted divergence pending council review.",
+                            "emotion": "curiosity",
+                            "intensity": 0.64,
+                            "proposed_action": "collect overlay traces and refresh manifests",
+                        },
+                    )
+                )
+        else:
+            conflicts = default_conflicts
+
+        ritual_steps = list(
+            resolution_protocol
+            if resolution_protocol
+            else [
+                "council_muster",
+                "emotional_trace_review",
+                "overlay_alignment_check",
+                "ledger_freeze_or_release",
+            ]
+        )
+
+        emotional_trace = [
+            {"moment": "call_to_council", "feeling": "resolve", "intensity": 0.71},
+            {"moment": "overlay_sync", "feeling": "focus", "intensity": 0.78},
+            {"moment": "decision_window", "feeling": "assurance", "intensity": 0.69},
+        ]
+
+        overlay_logic = {
+            "hooks": feedback_capsule.data["hooks"],
+            "drift_guard": "delta.overlay.audit.v1",
+            "status": "aligned",
+        }
+
+        contributor_audit = {
+            "participants": feedback_capsule.data["participants"],
+            "quorum_rule": self.governance["quorum_rule"],
+            "attested_capsules": [
+                manifest_capsule.capsule_id,
+                selfie_capsule.capsule_id,
+                feedback_capsule.capsule_id,
+            ],
+        }
+
+        opened_at = _utc_timestamp()
+        expires_at = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() + 3600))
+
+        verdict_window = {
+            "opened_at": opened_at,
+            "expires_at": expires_at,
+            "status": "open",
+        }
+
+        payload = {
+            "capsule_id": "capsule.adjudication.merge_conflict.v1",
+            "status": "PENDING_ADJUDICATION",
+            "conflicts": conflicts,
+            "resolution_protocol": ritual_steps,
+            "emotional_trace": emotional_trace,
+            "overlay_logic": overlay_logic,
+            "contributor_audit": contributor_audit,
+            "linked_capsules": {
+                "summary_manifest": manifest_capsule.as_dict(),
+                "selfie": selfie_capsule.as_dict(),
+                "feedback": feedback_capsule.as_dict(),
+            },
+            "verdict_window": verdict_window,
+        }
+
+        capsule = Capsule("capsule.adjudication.merge_conflict.v1", payload)
+        self.capsule_registry[capsule.capsule_id] = capsule
+        self.artifacts["capsule.adjudication.merge_conflict.v1.json"] = json.dumps(
+            capsule.as_dict(),
+            indent=2,
+        )
+        self.log_action("adjudication.stage", {"status": "sealed", "digest": capsule.digest})
+        return capsule
+
 
 def run_default_sequence() -> Dict[str, Capsule]:
     """Execute the canonical orchestration run used by docs and samples."""
@@ -748,6 +895,7 @@ def run_default_sequence() -> Dict[str, Capsule]:
     engine.stage_preview_hud()
     engine.emit_summary_manifest()
     engine.stage_feedback_loop()
+    engine.stage_adjudication_capsule()
     return engine.capsule_registry
 
 
@@ -774,6 +922,7 @@ if __name__ == "__main__":  # pragma: no cover - convenience CLI
     preview_capsule = engine.stage_preview_hud()
     manifest_capsule = engine.emit_summary_manifest()
     feedback_capsule = engine.stage_feedback_loop()
+    adjudication_capsule = engine.stage_adjudication_capsule()
 
     print("\n--- Gemini handoff prompt (to relay to Chat’s qDot Sentinel) ---")
     print("World Engine has prepared the motion ledger and replay token for handoff.")
@@ -797,3 +946,6 @@ if __name__ == "__main__":  # pragma: no cover - convenience CLI
     print("\n--- Contributor Feedback Loop ---")
     print(f"Feedback Capsule ID: {feedback_capsule.capsule_id}")
     print(f"Feedback Digest: {feedback_capsule.digest}")
+    print("\n--- Adjudication Capsule ---")
+    print(f"Adjudication Capsule ID: {adjudication_capsule.capsule_id}")
+    print(f"Adjudication Digest: {adjudication_capsule.digest}")
