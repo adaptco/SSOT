@@ -10,6 +10,14 @@ import pytest
 _PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(_PROJECT_ROOT) not in sys.path:
     sys.path.append(str(_PROJECT_ROOT))
+from pathlib import Path
+import sys
+import types
+from typing import Any, Callable, Dict, List, Tuple, get_args, get_origin, get_type_hints
+
+import pytest
+
+sys.path.append(str(Path(__file__).resolve().parents[1]))
 
 
 def _install_pydantic_stub() -> None:
@@ -75,6 +83,46 @@ def _install_pydantic_stub() -> None:
         @classmethod
         def parse_obj(cls, obj: Dict[str, Any]) -> "BaseModel":
             return cls(**obj)
+    class BaseModel:
+        __validators__: Dict[str, List[Callable[[type, Any], Any]]] = {}
+
+        def __init_subclass__(cls, **kwargs: Any) -> None:
+            super().__init_subclass__(**kwargs)
+            validators: Dict[str, List[Callable[[type, Any], Any]]] = {}
+            for attr in cls.__dict__.values():
+                config: Tuple[Tuple[str, ...], Dict[str, Any]] | None = getattr(
+                    attr, "_validator_config", None
+                )
+                if not config:
+                    continue
+                fields, _ = config
+                for field in fields:
+                    validators.setdefault(field, []).append(attr)
+            cls.__validators__ = validators
+
+        def __init__(self, **data: Any) -> None:
+            annotations: Dict[str, Any] = get_type_hints(self.__class__)
+            values: Dict[str, Any] = {}
+            for name, annotation in annotations.items():
+                if name in data:
+                    value = self._convert_value(annotation, data[name])
+                else:
+                    default = getattr(self.__class__, name, None)
+                    if isinstance(default, _DefaultFactory):
+                        value = default.factory()
+                    else:
+                        value = default
+                values[name] = value
+
+            for field, validators in getattr(self.__class__, "__validators__", {}).items():
+                if field in values:
+                    value = values[field]
+                    for validator_fn in validators:
+                        value = validator_fn(self.__class__, value)
+                    values[field] = value
+
+            for key, value in values.items():
+                setattr(self, key, value)
 
         @classmethod
         def _convert_value(cls, annotation: Any, value: Any) -> Any:
@@ -98,6 +146,22 @@ def _install_pydantic_stub() -> None:
                     for key, item in value.items()
                 }
             return value
+
+        @classmethod
+        def parse_obj(cls, obj: Dict[str, Any]) -> "BaseModel":
+            return cls(**obj)
+
+    def Field(*, default_factory: Callable[[], Any] | None = None, **_: Any) -> Any:
+        if default_factory is None:
+            raise ValueError("default_factory is required in this test stub")
+        return _DefaultFactory(default_factory)
+
+    def validator(*fields: str, **_: Any) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
+        def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
+            func._validator_config = (fields, {})  # type: ignore[attr-defined]
+            return func
+
+        return decorator
 
     module.BaseModel = BaseModel
     module.Field = Field
