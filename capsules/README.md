@@ -21,3 +21,7 @@ The `qube.telemetry.v1` capsule defines the cockpit view for the relay triangle 
 - **Alert guardrails** that trigger Dot rollbacks or council pings when quorum, drift, or replay invariants fall out of tolerance.
 
 Use the schema to validate telemetry payloads and to bootstrap the dashboard configuration for observability tooling. The example embedded in the schema demonstrates how to wire live Kafka, NATS, and HTTPS feeds into a unified cockpit.
+
+## `capsule.rehearsal.scrollstream.v1`
+
+The rehearsal scrollstream capsule sequences the Celine → Luma → Dot audit loop and records each handoff as staged ledger entries. Pair it with the HUD rehearsal hook in `docs/rehearsal_scrollstream_capsule.md` to surface a one-click smoke test inside dashboards before the capsule is sealed.
