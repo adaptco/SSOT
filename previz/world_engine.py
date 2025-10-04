@@ -991,6 +991,65 @@ class WorldEngine:
         )
         self.log_action("adjudication.stage", {"status": "sealed", "digest": capsule.digest})
         return capsule
+    def finalize_and_bind(self) -> Dict[str, str]:
+        """Seal the motion ledger and emit replay / echo capsules."""
+
+        ledger = self._load_motion_ledger()
+        frames_count = len(ledger)
+        capsule_motion = Capsule(
+            "capsule.motion.ledger.v2",
+            {
+                "capsule_id": "capsule.motion.ledger.v2",
+                "digest_type": "sha256",
+                "body_only": True,
+                "frames_count": frames_count,
+            },
+        )
+        self.capsule_registry[capsule_motion.capsule_id] = capsule_motion
+        self.log_action("finalize.motion_ledger", {"digest": capsule_motion.digest, "frames": frames_count})
+
+        capsule_replay = Capsule(
+            "capsule.replay.token.v2",
+            {
+                "capsule_id": "capsule.replay.token.v2",
+                "permissions": ["replay", "audit_trace", "HUD_stream"],
+                "quorum_rule": self.governance["quorum_rule"],
+                "status": "ISSUED",
+            },
+        )
+        self.capsule_registry[capsule_replay.capsule_id] = capsule_replay
+        self.log_action("finalize.replay_token", {"digest": capsule_replay.digest})
+
+        capsule_echo = Capsule(
+            "capsule.echo.scrollstream.v2",
+            {
+                "capsule_id": "capsule.echo.scrollstream.v2",
+                "verse": [
+                    "She did not move — she pulsed.",
+                    "Glyphs aligned, aura gold, qlock ticked — the braid remembered.",
+                    "From curiosity to wisdom, her vessel sang in HUD cadence.",
+                    "At seal, the scrollstream froze — not in silence, but in truth.",
+                ],
+                "linked_capsules": [
+                    capsule_motion.capsule_id,
+                    capsule_replay.capsule_id,
+                ],
+                "status": "SEALED",
+            },
+        )
+        self.capsule_registry[capsule_echo.capsule_id] = capsule_echo
+        self.log_action("finalize.echo_capsule", {"digest": capsule_echo.digest})
+
+        shots = self.generate_shot_list()
+        exports = {
+            "motion_ledger_digest": capsule_motion.digest,
+            "replay_token_digest": capsule_replay.digest,
+            "echo_digest": capsule_echo.digest,
+            "shot_count": str(len(shots)),
+        }
+        self.artifacts["exports.json"] = json.dumps(exports, indent=2)
+        self.log_action("finalize_and_bind", {"status": "complete", "exports": exports})
+        return exports
 
 
 def run_default_sequence() -> Dict[str, Capsule]:
@@ -1018,6 +1077,8 @@ def run_default_sequence() -> Dict[str, Capsule]:
     engine.emit_summary_manifest()
     engine.stage_feedback_loop()
     engine.stage_adjudication_capsule()
+    engine.generate_shot_list()
+    engine.finalize_and_bind()
     return engine.capsule_registry
 
 
@@ -1046,11 +1107,13 @@ if __name__ == "__main__":  # pragma: no cover - convenience CLI
     manifest_capsule = engine.emit_summary_manifest()
     feedback_capsule = engine.stage_feedback_loop()
     adjudication_capsule = engine.stage_adjudication_capsule()
+    exports = engine.finalize_and_bind()
 
     print("\n--- Gemini handoff prompt (to relay to Chat’s qDot Sentinel) ---")
     print("World Engine has prepared the motion ledger and replay token for handoff.")
     print(f"Motion Ledger Digest: {exports['motion_ledger_digest']}")
     print(f"Replay Token ID: {replay_capsule.capsule_id}")
+    print("Replay Token ID: capsule.replay.token.v2")
     print("These artifacts are now released to the qDot Sentinel for CI validation and final trailer assembly.")
     print("\n--- Deliverables ---")
     print("Governed PreViz package and timeline invariants confirmed.")
